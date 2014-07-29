@@ -1,0 +1,41 @@
+
+    <% if @error : %>
+      <tr><td colspan=7>
+	    <!-- button type="button" class="close" data-dismiss="alert">×</button -->
+	    <strong>ERROR: <%- @error %></strong>
+	    <div class="row">
+	      <div class="col-md-12"><%- @html_dump_error %></div>
+	    </div>
+      </td></tr>
+    <% end %>
+
+    
+    
+    <% if @trans_history && @trans_history.length > 0 : %>
+ 
+	<% i = 0 %>
+	<% for row in @trans_history : %>
+	    <% if ++i > @trans_history_options.show_records : %>
+		<tr><td colspan=7>
+		    <a href="<%- @c.route_path %>/?load=trans_history&trans_history_page=<%- @trans_history_options.next_page %>"
+			 class="col-md-3 btn btn-default"  
+		    > ещё </a>
+		</td></tr>
+		<% break; %>
+	    <% end %>
+		<tr>
+		    <td><%= row.id_trans %></td>
+		    <td><%= row.status %></td>
+		    <td><%= row.type %></td>
+		    <td><%= row.currency %></td>
+		    <td><%= row.amount %></td>
+		    <td><%= row.price %></td>
+		    <td><%= row.desc %></td>
+		</tr>
+	<% end %>
+
+    <% else : %>
+	<h2>записи не найдены</h2>
+    <% end %>
+    
+

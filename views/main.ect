@@ -1,0 +1,68 @@
+<% extend @this_template_path_dir + '/index.ect' %>
+
+    <% if @error : %>
+      <div class="alert alert-dismissable alert-danger">
+	<!-- button type="button" class="close" data-dismiss="alert">×</button -->
+	<strong>ERROR: <%- @error %></strong>
+	<div class="row">
+	  <div class="col-md-12"><%- @html_dump_error %></div>
+	</div>
+      </div>
+    <% end %>
+    
+    
+    <div class="row">
+	<div class="col-md-12"><code><%= @g.util.inspect(@options) %></code></div>
+    </div>
+    <div class="row">
+	<div class="col-md-12"><code><%= @options %></code></div>
+    </div>
+    <div class="row">
+	<div class="col-md-12"><code><%= @g.util.inspect(@body) %></code></div>
+    </div>
+    <div class="row">
+	<div class="col-md-12"><code><%= @body %></code></div>
+    </div>
+    
+
+
+<div class=row>
+    <div class="col-md-1" id=progressbarspacer></div>
+    <div class="col-md-3" id=progressbar>
+	<div id="squaresWaveG">
+	    <div id="squaresWaveG_1" class="squaresWaveG"></div>
+	    <div id="squaresWaveG_2" class="squaresWaveG"></div>
+	    <div id="squaresWaveG_3" class="squaresWaveG"></div>
+	    <div id="squaresWaveG_4" class="squaresWaveG"></div>
+	    <div id="squaresWaveG_5" class="squaresWaveG"></div>
+	    <div id="squaresWaveG_6" class="squaresWaveG"></div>
+	    <div id="squaresWaveG_7" class="squaresWaveG"></div>
+	    <div id="squaresWaveG_8" class="squaresWaveG"></div>
+	</div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+	<table class="table table-striped table-hover ">
+	    <thead>  
+		<tr>
+		    <th>id_trans</th>
+		    <th>status</th>
+		    <th>type</th>
+		    <th>currency</th>
+		    <th>amount</th>
+		    <th>price</th>
+		    <th>desc</th>
+		</tr>
+	    </thead>
+	    <tbody>
+		<% include @view_path+'/main__trans_history.ect' %>
+	    </tbody>
+	</table>
+    </div>
+</div>
+    
+<% block 'footer' : %>
+	<span>информация с btc-e</span>
+<% end %>

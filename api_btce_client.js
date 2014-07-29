@@ -33,7 +33,7 @@ module.exports = function(route_path,app,express){
     //  return req_search(req, res);
     //}
     
-    return require('./main_c.js')(req, res);
+    return require('./main.js')(req, res);
   });
 }
 

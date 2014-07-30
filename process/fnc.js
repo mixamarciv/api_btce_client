@@ -17,12 +17,13 @@ var fnc_list = {};
 module.exports = fnc_list;
 
 
-fnc_list.get_json_result      = get_json_result;
-fnc_list.get_next_nonce       = get_next_nonce;
-fnc_list.send_query           = send_query;
-fnc_list.update_trans_history = update_trans_history;
-fnc_list.update_trans_history = update_trans_history;
-fnc_list.update_stat          = update_stat;
+fnc_list.get_json_result             = get_json_result;
+fnc_list.get_next_nonce              = get_next_nonce;
+fnc_list.send_query                  = send_query;
+fnc_list.update_trans_history        = update_trans_history;
+fnc_list.update_trade_history        = update_trade_history;
+fnc_list.update_stat                 = update_stat;
+fnc_list.clear_private_data_tables   = clear_private_data_tables;
 
 function get_json_result(text) {
   var data = {};
@@ -68,7 +69,9 @@ function update_nonce(new_nonce,fn) {
 
 
 function set_new_nonce(err_text,fn) {
-    if (text.test(/invalid nonce parameter;/gi)) {  //{"success":0,"error":"invalid nonce parameter; on key:1, you sent:1406549336428, you should send:2"}
+    var text = err_text;
+    var re1 = /invalid nonce parameter;/gi;
+    if (re1.test(text)) {  //{"success":0,"error":"invalid nonce parameter; on key:1, you sent:1406549336428, you should send:2"}
           var i = text.lastIndexOf(':');
           var nonce = text.substr(i+1);
           update_nonce(nonce,function(err){
@@ -197,11 +200,12 @@ function send_query( type, params, restart_cnt, fn) {
               }
               
               if (!ret.success) {
-                  var text = ret.error;
+                  var text = String(ret.error);
+                  //g.log.error(ret);
+                  //g.log.error("ret:\n"+g.mixa.dump.var_dump_node("ret",ret));
                   
-                  if (text.test(/invalid nonce parameter;/gi)) {  //{"success":0,"error":"invalid nonce parameter; on key:1, you sent:1406549336428, you should send:2"}
-                      fn(err_info(err,'restart_cnt > '+max_restart+' end try request (invalid nonce)'));
-                      
+                  var re1 = /invalid nonce parameter;/gi;
+                  if (re1.test(text)) {  //{"success":0,"error":"invalid nonce parameter; on key:1, you sent:1406549336428, you should send:2"}
                       g.log.warn('restart query '+type+' '+restart_cnt+' (invalid nonce)');
                       g.log.warn('last query options:' + g.util.inspect(options));
                       g.log.warn('last query data:' + g.util.inspect(data));
@@ -220,6 +224,9 @@ function send_query( type, params, restart_cnt, fn) {
                       return;
                   }
                   
+                  if (text=='no orders') {
+                      ret['return'] = text;
+                  }
               }
               
               data.json = ret;
@@ -333,7 +340,7 @@ function get_price_from_desc(desc) {
 
 
 function update_stat(fn) {
-  var params = {method:'getInfo'};
+  var params = {method:'TradeHistory'};
   send_query('info',params, 2, function(err,data){
       if (err) return fn(err_info(err,'send_query for "getInfo" error'));
       
@@ -358,7 +365,7 @@ function update_stat(fn) {
                 err.sql_query_error = sql;
                 return fn(err_info(err,'sql: load last t_stat, bad sql'));
             }
-            var b = 0;
+            //var b = 0;
             var row=rows[0];
             if (rows.length==0 || !row || row.json!=ret_js.json_text) {
                 //если такие записи не найдены то добавляем новую
@@ -391,4 +398,173 @@ function update_stat(fn) {
       });
         
   });
+}
+//
+
+//обновляем таблицу trade_history
+function update_trade_history(fn) {
+    update_trade_history__update_history_orders(function(err){
+        if(err) return fn(err_info(err,'update_trade_history__update_history_orders error'));
+        update_trade_history__update_active_orders(function(err){
+            if(err) return fn(err_info(err,'update_trade_history__update_active_orders error'));
+            fn();
+        });
+    });
+}
+
+//обновляем историю ордеров в таблице trade_history
+function update_trade_history__update_history_orders(fn) {
+  var sql = "SELECT FIRST 1 SKIP 10 id,json,order_id,ftimestamp FROM trade_history t WHERE t.is_active=0 ORDER BY t.ftimestamp DESC";
+  db.query(sql,function(err,rows){  //получаем последние загруженные транзакции
+      if(err){
+          err.sql_query_error = sql;
+          return fn(err_info(err,'sql: load last trade_history, bad sql'));
+      }
+      var params = {method:'TradeHistory'};
+      var row=rows[0];
+      if (rows.length>0 && row ) {
+          params.from_id = row.order_id;
+      }
+      
+      send_query('info',params, 2, function(err,data){  //отправляем запрос на получение списка ордеров в истории
+          if (err) return fn(err_info(err,'send_query for "TradeHistory" error'));
+          
+          var ret_js = data.json["return"];
+          var arr_id_result = g.u.keys(ret_js);
+          g.async.eachSeries(arr_id_result, function( id_result, callback) {  //проверяем каждый ордер, если он уже и загружаем если его ещё не загружали или если он изменялся
+              var res = ret_js[id_result];
+              res.json_text = JSON.stringify(res);
+              res.json_text_s = res.json_text.replace(/'/g,"''");
+              
+              var sql = "SELECT FIRST 1 SKIP 0 id,json,order_id FROM trade_history t WHERE t.is_active=0 AND t.order_id="+res.order_id;
+              db.query(sql,function(err,rows){  //смотрим есть ли этот ордер в бд
+                    if(err){
+                        err.sql_query_error = sql;
+                        return fn(err_info(err,'sql: load order from trade_history, bad sql'));
+                    }
+                    var row = rows[0];
+                    if (rows.length>0 && row && row.json==res.json_text ) {
+                        return callback();
+                    }
+                    //если в базе этот ордер не найден или отличается от того что есть то загружаем его
+                    var sql1 = "INSERT INTO trade_history(is_active,id_result,json,amount,is_your_order,order_id,pair,rate,ftimestamp,type) "
+                              +" VALUES(0,"+id_result+", '"+res.json_text_s+"', "+res.amount+", "+res.is_your_order
+                              +", "+res.order_id+", '"+res.pair+"', "+res.rate+", "+res.timestamp+", '"+res.type+"')";
+                              
+                    db.query(sql1,function(err){  
+                        if(err){
+                            err.sql_query_error = sql1;
+                            return fn(err_info(err,'sql: insert order from trade_history, bad sql'));
+                        }
+                        callback();
+                    });
+              });
+          }, function(err){
+              if( err ) return fn(err_info(err,'error with save in async.eachSeries in array TradeHistory'));
+              fn();
+          });
+      });
+  });
+}
+
+
+//обновляем список активных ордеров в таблице trade_history
+function update_trade_history__update_active_orders(fn) {
+  
+  var params = {method:'ActiveOrders'};
+  send_query('info',params, 2, function(err,data){  //отправляем запрос на получение списка активных ордеров
+      if (err) return fn(err_info(err,'send_query for "ActiveOrders" error'));
+      var ret_js = data.json["return"];
+      var arr_id_result = g.u.keys(ret_js);
+      
+      var sql = "SELECT id,id_result,json,order_id,ftimestamp FROM trade_history t WHERE t.is_active=1";
+      db.query(sql,function(err,rows){  //получаем список активных ордеров в бд 
+          if(err){
+              err.sql_query_error = sql;
+              return fn(err_info(err,'sql: load active orders from trade_history, bad sql'));
+          }
+          
+          g.async.eachSeries(arr_id_result, function( id_result, callback) {  //проверяем каждый ордер из активных
+              var res = ret_js[id_result];
+              res.json_text = JSON.stringify(res);
+              res.json_text_s = res.json_text.replace(/'/g,"''");
+              
+              for(var i=0;i<rows.length;i++){
+                  var row = rows[i];
+                  if (res.json_text = row.json) {
+                      row.is_nochange = 1;
+                      res.is_nochange = 1;
+                      break;
+                  }
+              }
+              
+              if (!res.is_nochange) {  //если запись в бд не найдена
+                  //если в базе этот ордер не найден или отличается от того что есть то загружаем его
+                  var sql1 = "INSERT INTO trade_history(is_active,id_result,json,amount,pair,rate,ftimestamp_created,type,status) "
+                            +" VALUES(1,"+id_result+", '"+res.json_text_s+"', "+res.amount
+                            +", '"+res.pair+"', "+res.rate+", "+res.timestamp_created+", '"+res.type+"', "+res.status+")";
+                            
+                  db.query(sql1,function(err){
+                      if(err){
+                          err.sql_query_error = sql1;
+                          return callback(err_info(err,'sql: insert order to trade_history, bad sql'));
+                      }
+                      callback();
+                  });
+              }
+              
+              callback();
+          }, function(err){
+              if( err ) return fn(err_info(err,'error with save in async.eachSeries in array ActiveOrders'));
+              
+              //теперь помечаем ордера которые уже не активные как закрытые
+              g.async.eachSeries(rows, function( row, callback) {
+                  if(row.is_nochange) return callback();
+                  
+                  var sql2 = "UPDATE trade_history SET is_active=-1 WHERE id="+row.id;
+                  db.query(sql2,function(err){
+                      if(err){
+                          err.sql_query_error = sql2;
+                          err.row = row;
+                          return callback(err_info(err,'sql: update order in trade_history, bad sql'));
+                      }
+                      callback();
+                  });
+                  
+              }, function(err){
+                  if( err ) return fn(err_info(err,'error with update in async.eachSeries in db rows ActiveOrders'));
+                  fn();
+              });
+              
+          });
+      });
+      
+      
+      //g.log.warn(ret_js);
+      //g.log.warn(arr_id_result);
+      //g.log.warn("ret_js:\n"+g.mixa.dump.var_dump_node("ret_js",ret_js));
+      //g.log.warn("arr_id_result:\n"+g.mixa.dump.var_dump_node("arr_id_result",arr_id_result));
+      //fn(new Error());
+      
+  });
+}
+
+
+//очищаем пользовательские данные
+function clear_private_data_tables(fn) {
+    var arr_tables = ['t_stat','trade_history','trans_history'];
+    g.async.eachSeries(arr_tables, function( table, callback) {
+        var sql2 = "DELETE FROM "+table;
+        db.query(sql2,function(err){
+            if(err){
+                err.sql_query_error = sql2;
+                return callback(err_info(err,'sql: "'+sql2+'"'));
+            }
+            callback();
+        });
+        
+    }, function(err){
+        if( err ) return fn(err_info(err,'error async.eachSeries for arr_tables'));
+        fn();
+    });
 }

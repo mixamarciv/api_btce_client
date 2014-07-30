@@ -45,12 +45,26 @@ function load_data(req, res, fn) {
         if (err) return fn(err_info(err,'update_trans_history error'));
         //fnc.send_query('info', {method:'TransHistory'}, 3, fn);
     });
-  *****/
+  
   fnc.update_stat(function(err){
         if (err) return fn(err_info(err,'update_trans_history error'));
         fn();
   });
   return;
+  
+  
+  fnc.update_trade_history(function(err){
+        if (err) return fn(err_info(err,'update_trade_history error'));
+        fn();
+  });
+  return;
+  *****/
+  fnc.clear_private_data_tables(function(err){
+        if (err) return fn(err_info(err,'update_trade_history error'));
+        fn();
+  });
+  return;
+  
   
   var data = {};
   

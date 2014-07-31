@@ -1,3 +1,4 @@
+
 <% extend @this_template_path_dir + '/index.ect' %>
 
     <% if @error : %>
@@ -9,7 +10,35 @@
 	</div>
       </div>
     <% end %>
-    
+
+<div class="row">
+    <div class="col-md-12">
+	<div class="row">
+	    <div class="col-md-4">
+		<a href="<%- @c.route_path %>/?run_process=update_acc_info"
+		   class="btn btn-default"
+		   id='update_acc_info_link'
+		   ajax_result_to='update_acc_info_data'
+		 > update_acc_info </a>
+	    </div>
+	    <div class="col-md-4">
+		<a href="<%- @c.route_path %>/?run_process=update_price"
+		   class="btn btn-default"
+		   id='update_price'
+		   ajax_result_to='update_acc_info_data'
+		 > update_price </a>
+	    </div>
+	    <div class="col-md-4">
+		<a href="<%- @c.route_path %>/?run_process=clear_acc_info"
+		   class="btn btn-default"
+		   id='clear_acc_info_link'
+		   ajax_result_to='update_acc_info_data'
+		 > clear_acc_info </a>
+	    </div>
+	</div>
+	<div class="row" id='update_acc_info_data'></div> 
+    </div>
+</div>
     
     <div class="row">
 	<div class="col-md-12"><code><%= @g.util.inspect(@options) %></code></div>
@@ -65,4 +94,20 @@
     
 <% block 'footer' : %>
 	<span>информация с btc-e</span>
+	
+<script>  
+$(function(){
+    $('a[ajax_result_to]').each(function(indx, element){
+	var obj = $(element);
+	if (obj.attr('ajax_result_to')) {
+	    var id_link   = obj.attr('id');
+	    var id_result = obj.attr('ajax_result_to');
+	    set_ajax_link(id_link,id_result);
+	}
+    });
+});
+</script>
 <% end %>
+
+
+

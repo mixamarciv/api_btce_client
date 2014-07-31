@@ -92,3 +92,22 @@ function load_data(req, res, fn) {
   });
     
 }
+
+
+
+
+function run_external_process(req, res, process_name, fn) {
+  var options = {};
+  options.process_name = process_name;
+  options.run_file = path_join(__dirname,'./process/run_'+process_name+'.js');
+  options.rr = {req:req,res:res};
+
+  a.external_app.run_child_process2(options,function(err,p_data){
+        if (err) {
+            err.options = options;
+            return fn(err_info(err,'run_external_process error1'));
+        }
+        fn(null,p_data.id_process);
+  });
+}
+

@@ -13,8 +13,8 @@ module.exports = function(route_path,app,express){
   
   app.all(route_path,function(req, res){
     
-    if ( req.param('test1') ) {
-      return require('./test1.js')(req, res);
+    if ( req.param('run_process') ) {
+      return require('./run_process.js')(req, res);
     }
     
     //if ( req.param('edit') ) {

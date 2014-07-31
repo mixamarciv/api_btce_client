@@ -25,6 +25,8 @@ fnc_list.update_trade_history        = update_trade_history;
 fnc_list.update_stat                 = update_stat;
 fnc_list.clear_private_data_tables   = clear_private_data_tables;
 
+fnc_list.update_price                = update_price;
+
 function get_json_result(text) {
   var data = {};
   try{
@@ -340,7 +342,8 @@ function get_price_from_desc(desc) {
 
 
 function update_stat(fn) {
-  var params = {method:'TradeHistory'};
+  //var params = {method:'TradeHistory'};
+  var params = {method:'getInfo'};
   send_query('info',params, 2, function(err,data){
       if (err) return fn(err_info(err,'send_query for "getInfo" error'));
       
@@ -371,6 +374,11 @@ function update_stat(fn) {
                 //если такие записи не найдены то добавляем новую
                 
                 var f = ret_js.funds;
+                if (!f) {
+                    g.log.error(ret_js);
+                    g.log.error("ret_json:\n"+g.mixa.dump.var_dump_node("ret_js",ret_js));
+                    return fn(err_info(err,'bad return json data from server'));
+                }
                 var sql = "INSERT INTO t_stat(usd,btc,rur,ltc,ftc,eur,cnh,gbp,"
                          +" transaction_count,open_orders,server_time,json) VALUES("
                          + f.usd +"," +f.btc +"," +f.rur +"," +f.ltc +"," +f.ftc +"," +f.eur +"," +f.cnh +"," +f.gbp +","
@@ -470,7 +478,7 @@ function update_trade_history__update_history_orders(fn) {
 
 //обновляем список активных ордеров в таблице trade_history
 function update_trade_history__update_active_orders(fn) {
-  
+
   var params = {method:'ActiveOrders'};
   send_query('info',params, 2, function(err,data){  //отправляем запрос на получение списка активных ордеров
       if (err) return fn(err_info(err,'send_query for "ActiveOrders" error'));
@@ -538,14 +546,11 @@ function update_trade_history__update_active_orders(fn) {
               
           });
       });
-      
-      
       //g.log.warn(ret_js);
       //g.log.warn(arr_id_result);
       //g.log.warn("ret_js:\n"+g.mixa.dump.var_dump_node("ret_js",ret_js));
       //g.log.warn("arr_id_result:\n"+g.mixa.dump.var_dump_node("arr_id_result",arr_id_result));
       //fn(new Error());
-      
   });
 }
 
@@ -568,3 +573,100 @@ function clear_private_data_tables(fn) {
         fn();
     });
 }
+
+
+//обновляем текущие цены валют
+function update_price(pair,restart_cnt,fn) {
+  
+  var options = {
+              method: 'GET',
+              url: 'https://btc-e.com/api/2/'+pair+'/depth',    //'https://btc-e.com/api/2/btc_usd/depth',
+              headers: {
+                  'content-type' : 'application/x-www-form-urlencoded'
+              },
+              body: ''
+        };
+  
+  request(options, function(err, response, body) {
+              if (err) return fn(err_info(err,'request "'+options.url+'" '));
+              var data = {};
+              data.options = options;
+              //data.resp = response;
+              data.body = body;
+              if (!err && response.statusCode == 200) {
+                  //var info = JSON.parse(body);
+                  data.all_ok = 1;
+              }
+              
+              var ret = get_json_result(body);
+              
+              
+              if (ret.json_error) {
+                  if (restart_cnt<=0){
+                          var err = new Error;
+                          err.options = options;
+                          err.data = data;
+                          return fn(err_info(err,'restart_cnt <= 0 end try request (json parse error)'));
+                  }
+                  g.log.warn('restart query '+type+' '+restart_cnt+' (json_error)');
+                  g.log.warn('last query options:' + g.util.inspect(options));
+                  g.log.warn('last query data:' + g.util.inspect(data));
+                  g.log.warn("ret:\n"+g.mixa.dump.var_dump_node("ret",ret));
+                  
+                  return update_price( pair, restart_cnt-1, fn);
+              }
+              
+              if (!ret.asks || !ret.bids) {
+                  if (restart_cnt<=0){
+                          var err = new Error;
+                          err.options = options;
+                          err.data = data;
+                          return fn(err_info(err,'restart_cnt <= 0 end try request (bad json data)'));
+                  }
+                  g.log.warn('restart query '+restart_cnt+' (json_error)');
+                  g.log.warn('last query options:' + g.util.inspect(options));
+                  g.log.warn('last query data:' + g.util.inspect(data));
+                  g.log.warn("ret:\n"+g.mixa.dump.var_dump_node("ret",ret));
+                  
+                  return update_price( pair, restart_cnt-1, fn);
+              }
+              
+              data.json = ret;
+              
+              update_price__save_to_db(pair,data.json,fn);
+  });
+}
+
+function update_price__save_to_db(pair,json,fn) {
+  
+  var spair = pair.replace(/_/g,"");
+  var d = {}
+  d.asks = json.asks[0];
+  if (!d.asks) {
+    d.ask = 'NULL';
+    d.ask_vol = 'NULL';
+  }else{
+    d.ask = d.asks[0];
+    d.ask_vol = d.asks[1];
+  }
+  
+  d.bids = json.bids[0];
+  if (!d.bids) {
+    d.bid = 'NULL';
+    d.bid_vol = 'NULL';
+  }else{
+    d.bid = d.bids[0];
+    d.bid_vol = d.bids[1];
+  }
+  
+  
+  var sql = "INSERT INTO price(pair,ask,bid,ask_vol,bid_vol) VALUES('"+spair+"',"+d.ask+","+d.bid+","+d.ask_vol+","+d.bid_vol+")";
+  db.query(sql,function(err,rows){  
+      if(err){
+          err.sql_query_error = sql;
+          return fn(err_info(err,'sql: save last price, bad sql'));
+      }
+      fn();
+  });
+}
+

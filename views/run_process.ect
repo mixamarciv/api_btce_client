@@ -1,0 +1,19 @@
+<% if @error : %>
+      <div class="alert alert-dismissable alert-danger">
+	<strong>ERROR: <%- @error %></strong>
+	<%- @html_dump_error %>
+      </div>
+<% end %>
+    
+<% if @id_process : %>
+    <div id="status" status="success" ></div>
+    <div class="alert alert-dismissable alert-info">
+      <!-- button type="button" class="close" data-dismiss="alert">×</button -->
+      процесс запущен
+      <a type="button" class="btn btn-default" data-toggle="tooltip" data-placement="top" title="" data-original-title="откроется в новом окне"
+         target="_blank" href="/process_info?id_process=<%- @id_process %>"
+      > <strong> <%- @id_process %> </strong>
+      </a>
+       
+    </div>
+<% end %>

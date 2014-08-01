@@ -17,6 +17,10 @@ module.exports = function(route_path,app,express){
       return require('./run_process.js')(req, res);
     }
     
+    if ( req.param('trade') ) {
+      return require('./trade.js')(req, res);
+    }
+    
     //if ( req.param('edit') ) {
     //  return require('./edit.js')(req, res);
     //}

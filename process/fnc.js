@@ -27,6 +27,10 @@ fnc_list.clear_private_data_tables   = clear_private_data_tables;
 
 fnc_list.update_price                = update_price;
 
+
+fnc_list.load_trade_data             = load_trade_data;
+
+
 function get_json_result(text) {
   var data = {};
   try{
@@ -114,7 +118,7 @@ function load_keys_from_file(fn) {
                 return fn(err_info(err,'bad key_file: '+c.key_file));
             }
             c.keys = keys;
-            g.log.info( c.keys );
+            //g.log.info( c.keys );
             fn();
         });
     });
@@ -608,7 +612,7 @@ function update_price(pair,restart_cnt,fn) {
                           err.data = data;
                           return fn(err_info(err,'restart_cnt <= 0 end try request (json parse error)'));
                   }
-                  g.log.warn('restart query '+type+' '+restart_cnt+' (json_error)');
+                  g.log.warn('restart query '+restart_cnt+' (json_error)');
                   g.log.warn('last query options:' + g.util.inspect(options));
                   g.log.warn('last query data:' + g.util.inspect(data));
                   g.log.warn("ret:\n"+g.mixa.dump.var_dump_node("ret",ret));
@@ -660,13 +664,96 @@ function update_price__save_to_db(pair,json,fn) {
   }
   
   
-  var sql = "INSERT INTO price(pair,ask,bid,ask_vol,bid_vol) VALUES('"+spair+"',"+d.ask+","+d.bid+","+d.ask_vol+","+d.bid_vol+")";
-  db.query(sql,function(err,rows){  
+  var sql0 = "SELECT pair,ask,bid,ask_vol,bid_vol FROM price p "
+            +"WHERE p.pair='"+spair+"' AND p.date_create=(SELECT MAX(t.date_create) FROM price t WHERE t.pair=p.pair)";
+  db.query(sql0,function(err,rows){  
       if(err){
-          err.sql_query_error = sql;
-          return fn(err_info(err,'sql: save last price, bad sql'));
+          err.sql_query_error = sql0;
+          return fn(err_info(err,'sql: get db last price, bad sql'));
       }
-      fn();
+      var row = rows[0];
+      if (row && row.ask==d.ask && row.bid==d.bid && row.ask_vol==d.ask_vol && row.bid_vol==d.bid_vol) {
+          g.log.info('load price: no changes');
+          return fn();
+      }
+      var sql = "INSERT INTO price(pair,ask,bid,ask_vol,bid_vol) VALUES('"+spair+"',"+d.ask+","+d.bid+","+d.ask_vol+","+d.bid_vol+")";
+      db.query(sql,function(err,rows){  
+          if(err){
+              err.sql_query_error = sql;
+              return fn(err_info(err,'sql: save last price, bad sql'));
+          }
+          fn();
+      });
   });
+  
+}
+
+
+function load_trade_data(req,res,data,fn) {
+  data.trade_data_options = {};
+  var opt = data.trade_data_options;
+  opt.show_records = 15;
+  opt.next_page = req.param('trade_data_page');
+  if (!opt.next_page) {
+      opt.next_page = 0;
+  }
+  opt.skip_records = opt.show_records * opt.next_page;
+  opt.next_page++;
+  
+  var t_show_records = opt.show_records + 1;
+  var sql = "SELECT FIRST "+t_show_records+" SKIP "+opt.skip_records+" "
+           +"  id,"        //id операции в бд
+           +"  id_seria,"  //id - серии ордеров
+           +"  pair,"      //валютная пара
+           +"  type,"      //тип ордеров - покупка/продажа
+           +"  rate,"      //цена покупки продажи
+           +"  amount,"    //количество продаем/покупаем
+           +"  received,"  //количество получаем
+           +"  remains,"   //остаток
+           +"  order_id,"
+           +"  date_create,"
+           +"  rate * amount AS sum_bs " //поидее тоже самое что и received
+           +" FROM trade t ";
+           
+  var id_seria = req.param('id_seria');
+  if (id_seria) {
+      sql += " WHERE id_seria="+id_seria; 
+  }
+  
+  db.query(sql,function(err,rows){
+        if(err){
+            err.sql_query_error = sql;
+            return fn(err_info(err,'sql: load load_trade_data, bad sql'));
+        }
+        data.trade_data = rows;
+        
+        var ts = {};
+        for(var i=0;i<rows.length;i++){
+            var row = rows[i];
+            
+            var s = ts[row.id_seria];
+            if (!s) {
+                ts[row.id_seria] = row;
+                s = ts[row.id_seria];
+                s.cnt_orders = 1;
+                delete s.order_id;
+                delete s.id;
+                delete s.rate;
+                delete s.date_create;
+                continue;
+            }
+            
+            s.cnt_orders++;
+            s.amount   += row.amount;
+            s.received += row.received;
+            s.remains  += row.remains;
+            s.sum_bs   += row.sum_bs;
+            
+        }
+        data.trade_series = g.u.values(ts);
+        
+        fn(null,data);
+  });
+  
 }
 

@@ -12,34 +12,97 @@
     <% end %>
 
 <div class="row">
-    <div class="col-md-12">
+    <div class="col-md-2">
 	<div class="row">
-	    <div class="col-md-4">
+	    <div class="row">
 		<a href="<%- @c.route_path %>/?run_process=update_acc_info"
 		   class="btn btn-default"
 		   id='update_acc_info_link'
-		   ajax_result_to='update_acc_info_data'
+		   ajax_result_to='update_acc_info_data1'
 		 > update_acc_info </a>
+		 <div class="row" id='update_acc_info_data1'></div> 
 	    </div>
-	    <div class="col-md-4">
+	    <div class="row">
 		<a href="<%- @c.route_path %>/?run_process=update_price"
 		   class="btn btn-default"
 		   id='update_price'
-		   ajax_result_to='update_acc_info_data'
+		   ajax_result_to='update_acc_info_data2'
 		 > update_price </a>
+		 <div class="row" id='update_acc_info_data2'></div> 
 	    </div>
-	    <div class="col-md-4">
+	    <div class="row">
 		<a href="<%- @c.route_path %>/?run_process=clear_acc_info"
 		   class="btn btn-default"
 		   id='clear_acc_info_link'
-		   ajax_result_to='update_acc_info_data'
+		   ajax_result_to='update_acc_info_data3'
 		 > clear_acc_info </a>
+		 <div class="row" id='update_acc_info_data3'></div> 
 	    </div>
 	</div>
-	<div class="row" id='update_acc_info_data'></div> 
+    </div>
+    <div class="col-md-10">
+    
+
+<div class="row">
+    <div class="col-md-12">
+	trade series:
+	<table class="table table-striped table-hover ">
+	    <thead>  
+		<tr>
+		    <th>id seria</th>
+		    <th>type</th>
+		    <th>pair</th>
+		    <th>цена покупки/продажи</th>
+		    <th>кол-во продаем/покупаем</th>
+		    <th>кол-во получаем</th>
+		    <th>остаток</th>
+		    <th>получено</th>
+		    <th>cnt</th>
+		</tr>
+	    </thead>
+	    <tbody>
+		<!-- % include @view_path+'/main__trans_history.ect' % -->
+    <% if @trade_series && @trade_series.length > 0 : %>
+	<% for row in @trade_series : %>
+		<tr>
+		    <td><%= row.id_seria %></td>
+		    <td><%= row.type %></td>
+		    <td><%= row.pair %></td>
+		    <td><%= row.rate %></td>
+		    <td><%= row.amount %></td>
+		    <td><%= row.received %></td>
+		    <td><%= row.remains %></td>
+		    <td><%= row.sum_bs %></td>
+		    <td><span class="badge"><%= row.cnt_orders %></span>
+		    	   <a href="<%- @c.route_path %>/?trade=add_order&id_seria=<%- row.id_seria %>"
+			     class="btn btn-default"
+			     id='clear_acc_info_link'
+			     ajax_result_to='update_acc_info_data3'
+			   > + </a>
+		    </td>
+		</tr>
+	<% end %>
+    <% else : %>
+		<tr><td colspan=9>
+		      <h2>записи не найдены</h2>
+		</td></tr>
+    <% end %>
+		<tr><td colspan=9>
+			  <a href="<%- @c.route_path %>/?trade=new_seria"
+			     class="btn btn-default"
+			     id='clear_acc_info_link'
+			     ajax_result_to='update_acc_info_data3'
+			   > open new seria </a>
+		</td></tr>
+		
+	    </tbody>
+	</table>
     </div>
 </div>
-    
+
+
+
+<!--
     <div class="row">
 	<div class="col-md-12"><code><%= @g.util.inspect(@options) %></code></div>
     </div>
@@ -52,10 +115,12 @@
     <div class="row">
 	<div class="col-md-12"><code><%= @body %></code></div>
     </div>
+-->
+    
     
 
 
-<div class=row>
+<!-- div class=row>
     <div class="col-md-1" id=progressbarspacer></div>
     <div class="col-md-3" id=progressbar>
 	<div id="squaresWaveG">
@@ -69,10 +134,11 @@
 	    <div id="squaresWaveG_8" class="squaresWaveG"></div>
 	</div>
     </div>
-</div>
+</div -->
 
 <div class="row">
     <div class="col-md-12">
+	transactions history
 	<table class="table table-striped table-hover ">
 	    <thead>  
 		<tr>
@@ -89,6 +155,11 @@
 		<% include @view_path+'/main__trans_history.ect' %>
 	    </tbody>
 	</table>
+    </div>
+</div>
+
+
+
     </div>
 </div>
     

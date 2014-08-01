@@ -39,39 +39,34 @@ function render(req,res,data) {
 var fnc = require('./process/fnc.js');
 
 function load_data(req, res, fn) {
-  
-  /*****
-    fnc.update_trans_history(function(err){
-        if (err) return fn(err_info(err,'update_trans_history error'));
-        //fnc.send_query('info', {method:'TransHistory'}, 3, fn);
-    });
-  
-  fnc.update_stat(function(err){
-        if (err) return fn(err_info(err,'update_trans_history error'));
-        fn();
-  });
-  return;
-  
-  
-  fnc.update_trade_history(function(err){
-        if (err) return fn(err_info(err,'update_trade_history error'));
-        fn();
-  });
-  return;
-  *****/
-  fnc.clear_private_data_tables(function(err){
-        if (err) return fn(err_info(err,'update_trade_history error'));
-        fn();
-  });
-  return;
-  
-  
   var data = {};
   
   
+  g.async.waterfall([
+    function(callback){
+        load_trans_history(req,res,data,function(err){
+            if (err) return callback(err_info(err,'err in load_trans_history'));
+            callback();
+        });
+    },
+    function(callback){
+        fnc.load_trade_data(req,res,data,function(err){
+            if (err) return callback(err_info(err,'err in load_trade_data'));
+            callback();
+        });
+    }
+    ],
+    function (err) {
+        fn(err,data);
+    }
+  );
+  
+}
+
+function load_trans_history(req,res,data,fn) {
   data.trans_history_options = {};
   var opt = data.trans_history_options;
-  opt.show_records = 15;
+  opt.show_records = 7;
   opt.next_page = req.param('trans_history_page');
   if (!opt.next_page) {
       opt.next_page = 0;
@@ -90,12 +85,10 @@ function load_data(req, res, fn) {
         data.trans_history = rows;
         fn(null,data);
   });
-    
 }
 
 
-
-
+/********
 function run_external_process(req, res, process_name, fn) {
   var options = {};
   options.process_name = process_name;
@@ -110,4 +103,4 @@ function run_external_process(req, res, process_name, fn) {
         fn(null,p_data.id_process);
   });
 }
-
+*********/

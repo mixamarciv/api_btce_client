@@ -1,0 +1,96 @@
+
+<% extend @this_template_path_dir + '/index.ect' %>
+
+    <% if @error : %>
+      <div class="alert alert-dismissable alert-danger">
+	<!-- button type="button" class="close" data-dismiss="alert">×</button -->
+	<strong>ERROR: <%- @error %></strong>
+	<div class="row">
+	  <div class="col-md-12"><%- @html_dump_error %></div>
+	</div>
+      </div>
+    <% end %>
+
+    
+
+<div class="row">
+    <div class="col-md-12">
+	orders:
+	<table class="table table-striped table-hover ">
+	    <thead>  
+		<tr>
+		    <th>id seria</th>
+		    <th>type</th>
+		    <th>pair</th>
+		    <th>цена покупки/продажи</th>
+		    <th>кол-во продаем/покупаем</th>
+		    <th>кол-во получаем</th>
+		    <th>остаток</th>
+		    <th>получено</th>
+		    <th>cnt</th>
+		</tr>
+	    </thead>
+	    <tbody>
+		<!-- % include @view_path+'/main__trans_history.ect' % -->
+    <% if @trade_data && @trade_data.length > 0 : %>
+	<% for row in @trade_data : %>
+	
+	
+		<tr>
+		    <td><%= row.id_seria %></td>
+		    <td><%= row.type %></td>
+		    <td><%= row.pair %></td>
+		    <td><%= row.rate %></td>
+		    <td><%= row.amount %></td>
+		    <td><%= row.received %></td>
+		    <td><%= row.remains %></td>
+		    <td><%= row.sum_bs %></td>
+		    <td><span class="badge"><%= row.cnt_orders %></span>
+		    	   <a href="<%- @c.route_path %>/?trade=add_order&id_seria=<%- row.id_seria %>"
+			     class="btn btn-default"
+			     id='clear_acc_info_link'
+			     ajax_result_to='update_acc_info_data3'
+			   > + </a>
+		    </td>
+		</tr>
+	<% end %>
+    <% else : %>
+		<tr><td colspan=9>
+		      <h2>записи не найдены</h2>
+		</td></tr>
+    <% end %>
+		<tr><td colspan=9>
+			  <a href="<%- @c.route_path %>/?trade=new_seria"
+			     class="btn btn-default"
+			     id='clear_acc_info_link'
+			     ajax_result_to='update_acc_info_data3'
+			   > open new seria </a>
+		</td></tr>
+		
+	    </tbody>
+	</table>
+    </div>
+</div>
+
+
+
+    
+<% block 'footer' : %>
+	<span>открытие ордеров на btc-e</span>
+	
+<script>  
+$(function(){
+    $('a[ajax_result_to]').each(function(indx, element){
+	var obj = $(element);
+	if (obj.attr('ajax_result_to')) {
+	    var id_link   = obj.attr('id');
+	    var id_result = obj.attr('ajax_result_to');
+	    set_ajax_link(id_link,id_result);
+	}
+    });
+});
+</script>
+<% end %>
+
+
+

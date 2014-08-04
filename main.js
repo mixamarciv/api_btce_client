@@ -50,8 +50,9 @@ function load_data(req, res, fn) {
         });
     },
     function(callback){
-        fnc.load_trade_data(req,res,data,function(err){
+        fnc.load_seria_data(null,function(err,res_data){
             if (err) return callback(err_info(err,'err in load_trade_data'));
+            data.trade_series = res_data.rows;
             callback();
         });
     }

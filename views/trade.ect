@@ -1,7 +1,7 @@
 
 <% extend @this_template_path_dir + '/index.ect' %>
 
-    <% if @error : %>
+<% if @error : %>
       <div class="alert alert-dismissable alert-danger">
 	<!-- button type="button" class="close" data-dismiss="alert">×</button -->
 	<strong>ERROR: <%- @error %></strong>
@@ -9,7 +9,7 @@
 	  <div class="col-md-12"><%- @html_dump_error %></div>
 	</div>
       </div>
-    <% end %>
+<% else : %>
 
     
 
@@ -32,9 +32,7 @@
 	    </thead>
 	    <tbody>
 		<!-- % include @view_path+'/main__trans_history.ect' % -->
-    <% if @trade_data && @trade_data.length > 0 : %>
-	<% for row in @trade_data : %>
-	
+    <% row = @trade_series[0] %>
 	
 		<tr>
 		    <td><%= row.id_seria %></td>
@@ -44,29 +42,49 @@
 		    <td><%= row.amount %></td>
 		    <td><%= row.received %></td>
 		    <td><%= row.remains %></td>
-		    <td><%= row.sum_bs %></td>
+		    <td><%= (row.rate * row.amount) %></td>
 		    <td><span class="badge"><%= row.cnt_orders %></span>
-		    	   <a href="<%- @c.route_path %>/?trade=add_order&id_seria=<%- row.id_seria %>"
-			     class="btn btn-default"
-			     id='clear_acc_info_link'
-			     ajax_result_to='update_acc_info_data3'
-			   > + </a>
 		    </td>
 		</tr>
-	<% end %>
-    <% else : %>
-		<tr><td colspan=9>
+
+	    	<!-- tr><td colspan=9>
 		      <h2>записи не найдены</h2>
+		</td></tr -->
+		<tr><td colspan=9 class='row'>
+		    
+		    <form method='POST' id=form_seria >
+			<input name="trade" type='hidden' value="1">
+			<input name="id_seria" type='hidden' value="<%- @id_seria %>">
+			<div class="col-md-3">
+			    <div class=row><label for="step_inc_next_price" class="control-label"> шаг изменения цены: </label></div>
+			    <div class=row><input class="col-md-10" id="step_inc_next_price" name="step_inc_next_price" type='text' value="<%- row.step_inc_next_price %>"></div>
+			</div>
+			<div class="col-md-3">
+			    <div class=row><label for="step_inc_next_amount" class="control-label"> множитель увеличения объема: </label></div>
+			    <div class=row><input class="col-md-10" id="step_inc_next_amount" name="step_inc_next_amount" type='text' value="<%- row.step_inc_next_amount %>"></div>
+			</div>
+			<div class="col-md-3">
+			    <div class=row><label for="min_profit_close" class="control-label"> минимальный профит для закрытия серии: </label></div>
+			    <div class=row><input class="col-md-10" id="min_profit_close" name="min_profit_close" type='text' value="<%- row.min_profit_close %>"></div>
+			</div>
+			<div class="col-md-3">
+			    <div class=row id=form_seria_btn >
+				<input id=send_q class="btn btn-primary" name="save" type='submit' value="<% if @id_seria > 0 : %>update<% else : %>create new seria<% end %>">
+			    </div>
+			</div>
+		    </form>
+	
+		    
 		</td></tr>
-    <% end %>
+    <% if @id_seria : %>
 		<tr><td colspan=9>
-			  <a href="<%- @c.route_path %>/?trade=new_seria"
+			  <a href="<%- @c.route_path %>/?trade=add_order&id_seria=<%- @id_seria %>""
 			     class="btn btn-default"
 			     id='clear_acc_info_link'
 			     ajax_result_to='update_acc_info_data3'
-			   > open new seria </a>
+			   > open new order </a>
 		</td></tr>
-		
+    <% end %>
 	    </tbody>
 	</table>
     </div>
@@ -74,23 +92,63 @@
 
 
 
-    
+<% end %> <!-- end error block -->
 <% block 'footer' : %>
 	<span>открытие ордеров на btc-e</span>
 	
-<script>  
+<script>
+function send_form_seria() {
+    var f = $('#form_seria');
+    var data = {};
+    data.ajax = 1;
+    data.trade = 1;
+    data.form_type 	      = 'seria_edit';
+    data.id_seria             = f.find('#id_seria').val();
+    data.step_inc_next_price  = f.find('#step_inc_next_price').val();
+    data.step_inc_next_amount = f.find('#step_inc_next_amount').val();
+    data.min_profit_close     = f.find('#min_profit_close').val();
+    
+    var ajax_options = {
+          type: f.attr('method'),
+          data: data,
+	  onSend: function(){
+		var obj = $('#form_seria_btn');
+		obj.html('загрузка..');
+	  },
+          success: function(html,textStatus,jqXHR){ // после получения результатов выводим список (новый список, и удаляем старый)
+		var obj = $('#form_seria_btn');
+		if (!obj) {
+		  alert('not found object #form_seria_btn');
+		}else{
+		  var button = '<input id=send_q class="btn btn-primary" name="save" type="submit" value="update">';
+		  var d = {};
+		  try{
+		    d = JSON.parse(html);
+		  }catch(err){
+		    d.success = 0;
+		    d.error = "JSON.parse error (text:"+html+")";
+		  }
+		  
+		  if (!d.success) {
+		    obj.html('ERROR:'+d.error+'<br>'+button);
+		  }else{
+		    obj.html('success<br>'+button);
+		  }
+		  $('#form_seria').find('#send_q').click(send_form_seria);
+		}
+          },
+          test: 0
+    };
+    send_ajax_query_timeout(1,ajax_options,delay=100);
+}
 $(function(){
-    $('a[ajax_result_to]').each(function(indx, element){
-	var obj = $(element);
-	if (obj.attr('ajax_result_to')) {
-	    var id_link   = obj.attr('id');
-	    var id_result = obj.attr('ajax_result_to');
-	    set_ajax_link(id_link,id_result);
-	}
-    });
+    $('#form_seria').find('#send_q').click(send_form_seria);
 });
 </script>
 <% end %>
 
+
+
+    
 
 

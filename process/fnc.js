@@ -28,7 +28,8 @@ fnc_list.clear_private_data_tables   = clear_private_data_tables;
 fnc_list.update_price                = update_price;
 
 
-fnc_list.load_trade_data             = load_trade_data;
+fnc_list.load_seria_data             = load_seria_data;
+fnc_list.update_seria_data           = update_seria_data;
 
 
 function get_json_result(text) {
@@ -77,7 +78,9 @@ function update_nonce(new_nonce,fn) {
 function set_new_nonce(err_text,fn) {
     var text = err_text;
     var re1 = /invalid nonce parameter;/gi;
-    if (re1.test(text)) {  //{"success":0,"error":"invalid nonce parameter; on key:1, you sent:1406549336428, you should send:2"}
+    //"success":0,"error":"invalid nonce parameter; on key:1, you sent:1406549336428, you should send:2"
+    if (re1.test(text)) {
+          
           var i = text.lastIndexOf(':');
           var nonce = text.substr(i+1);
           update_nonce(nonce,function(err){
@@ -104,7 +107,7 @@ function load_keys_from_file(fn) {
     g.fs.exists(c.key_file,function(ex){
         if (!ex) {
           var err = new Error;
-          return fn(err_info(err,'not found key_file: '+key_file));
+          return fn(err_info(err,'not found key_file: ' + key_file ));
         }
         g.fs.readFile(c.key_file,function(err,data){
             if (err) {
@@ -689,71 +692,93 @@ function update_price__save_to_db(pair,json,fn) {
 }
 
 
-function load_trade_data(req,res,data,fn) {
-  data.trade_data_options = {};
-  var opt = data.trade_data_options;
-  opt.show_records = 15;
-  opt.next_page = req.param('trade_data_page');
-  if (!opt.next_page) {
+function load_seria_data(opt,fn) {
+  if (!opt) {
+    opt = {};
+  }
+
+  if (!opt.show_records || isNaN(opt.show_records)) {
+    opt.show_records = 1000;
+  }
+
+  opt.next_page = opt.page;
+  if (!opt.next_page || isNaN(opt.next_page)) {
       opt.next_page = 0;
   }
+  
   opt.skip_records = opt.show_records * opt.next_page;
   opt.next_page++;
   
+  //g.log.error("opt4:\n"+g.mixa.dump.var_dump_node("opt4",opt));
+  
   var t_show_records = opt.show_records + 1;
   var sql = "SELECT FIRST "+t_show_records+" SKIP "+opt.skip_records+" "
-           +"  id,"        //id операции в бд
-           +"  id_seria,"  //id - серии ордеров
+           +"  id AS id_seria,"        //id операции в бд
            +"  pair,"      //валютная пара
            +"  type,"      //тип ордеров - покупка/продажа
            +"  rate,"      //цена покупки продажи
            +"  amount,"    //количество продаем/покупаем
            +"  received,"  //количество получаем
            +"  remains,"   //остаток
-           +"  order_id,"
-           +"  date_create,"
-           +"  rate * amount AS sum_bs " //поидее тоже самое что и received
-           +" FROM trade t ";
-           
-  var id_seria = req.param('id_seria');
+           +"  cnt_orders,"
+           +"  t.date_start,"
+           +"  t.step_inc_next_price,"
+           +"  t.step_inc_next_amount,"
+           +"  t.min_profit_close,"
+           +"  0 AS tmp"
+           //+"  rate * amount AS sum_bs " //поидее тоже самое что и received
+           +" FROM seria t "
+           ;
+  /***************
+		    <td><%= row.id_seria %></td>
+		    <td><%= row.type %></td>
+		    <td><%= row.pair %></td>
+		    <td><%= row.amount %></td>
+		    <td><%= row.received %></td>
+		    <td><%= row.remains %></td>
+		    <td><%= row.sum_bs %></td>
+		    <td><span class="badge"><%= row.cnt_orders %></span>
+  **************/
+  var id_seria = opt.id_seria;
   if (id_seria) {
-      sql += " WHERE id_seria="+id_seria; 
+      sql += " WHERE id="+id_seria; 
   }
+  sql += " ORDER BY t.date_start DESC ";
+  
   
   db.query(sql,function(err,rows){
         if(err){
             err.sql_query_error = sql;
-            return fn(err_info(err,'sql: load load_trade_data, bad sql'));
+            return fn(err_info(err,'sql: load_seria_data, bad sql'));
         }
-        data.trade_data = rows;
-        
-        var ts = {};
-        for(var i=0;i<rows.length;i++){
-            var row = rows[i];
-            
-            var s = ts[row.id_seria];
-            if (!s) {
-                ts[row.id_seria] = row;
-                s = ts[row.id_seria];
-                s.cnt_orders = 1;
-                delete s.order_id;
-                delete s.id;
-                delete s.rate;
-                delete s.date_create;
-                continue;
-            }
-            
-            s.cnt_orders++;
-            s.amount   += row.amount;
-            s.received += row.received;
-            s.remains  += row.remains;
-            s.sum_bs   += row.sum_bs;
-            
-        }
-        data.trade_series = g.u.values(ts);
+        var data = {};
+        data.options = opt;
+        data.rows = rows;
         
         fn(null,data);
   });
   
 }
 
+
+function update_seria_data(id_seria,fn) {
+  var sql = "UPDATE seria s SET \n"
+           +"  s.pair = (SELECT MAX(t.pair) FROM trade t WHERE t.id_seria=s.id), \n"
+           +"  s.cnt_orders = (SELECT COUNT(*) FROM trade t WHERE t.id_seria=s.id), \n"
+           +"  s.type     = (SELECT MAX(t.type) FROM trade t WHERE t.id_seria=s.id), \n"
+           +"  s.rate     = (SELECT MAX(t.rate) FROM trade t WHERE t.id_seria=s.id), \n"
+           +"  s.amount   = (SELECT SUM(t.amount) FROM trade t WHERE t.id_seria=s.id), \n"
+           +"  s.received = (SELECT SUM(t.received) FROM trade t WHERE t.id_seria=s.id), \n"
+           +"  s.remains  = (SELECT SUM(t.remains) FROM trade t WHERE t.id_seria=s.id), \n"
+           +"  s.date_start  = (SELECT MIN(t.date_create) FROM trade t WHERE t.id_seria=s.id) \n"
+           //+"  rate * amount AS sum_bs " //поидее тоже самое что и received
+           +" WHERE s.id="+id_seria
+           ;
+  db.query(sql,function(err,rows){
+        if(err){
+            err.sql_query_error = sql;
+            return fn(err_info(err,'sql: update_seria_info, bad sql'));
+        }
+        fn(null);
+  });
+}
